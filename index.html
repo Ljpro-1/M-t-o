@@ -87,6 +87,19 @@ margin-top:15px;
 </div>
 
 <div class="card" id="result"></div>
+  
+<!-- 📩 CONTACT (à ajouter ici) -->
+<div class="card">
+<h3>📩 Contactez-nous</h3>
+
+<input id="name" placeholder="Nom">
+<input id="email" placeholder="Email">
+<input id="msg" placeholder="Message">
+
+<button onclick="sendMessage()">Envoyer</button>
+
+<p id="status"></p>
+</div>
 
 </div>
 
@@ -263,30 +276,47 @@ function healthAdvice(all){
 let avg=all.reduce((a,b)=>a+b.t,0)/all.length;
 let rain=Math.max(...all.map(d=>d.r));
 
+let foodsCold = [
+"🍲 Lasopy mafana + vary + atody",
+"🥘 Hen'omby sy legioma mafana",
+"🍜 Paty na soupe mafana",
+"☕ Dite mafana + mofo"
+];
+
+let foodsNormal = [
+"🍛 Vary + hena + trondro + legioma",
+"🥗 Salady + atody + voankazo",
+"🍗 Akoho sy vary + legioma maitso",
+"🍎 Voankazo + yaourt"
+];
+
+let foodsHot = [
+"🥗 Salady mangatsiaka + voankazo",
+"🍉 Pastèque + manga + ananas",
+"🥤 Rano sy jus naturel",
+"🍚 Sakafo maivana (vary kely + trondro)"
+];
+
 let food="";
-let explain="";
 
 if(avg<18){
-food="🍲 Sakafo: lasopy mafana, vary, atody, legioma maitso.";
-explain="🧠 Antony: manome angovo sy hafanana ny vatana + vitamina B sy proteinina manampy hery.";
+food = foodsCold[Math.floor(Math.random()*foodsCold.length)];
 }
-
 else if(avg<26){
-food="🍛 Sakafo: vary, hena, trondro, legioma, voankazo.";
-explain="🧠 Antony: mitazona fifandanjana ara-tsakafo (proteinina + vitamina + fibre) ho an'ny vatana salama.";
+food = foodsNormal[Math.floor(Math.random()*foodsNormal.length)];
+}
+else{
+food = foodsHot[Math.floor(Math.random()*foodsHot.length)];
 }
 
-else{
-food="🥗 Sakafo: voankazo (manga, pastèque), salady, sakafo maivana.";
-explain="🧠 Antony: manampy rano sy vitamina C + manala hafanana tafahoatra amin'ny vatana.";
-}
+let explain="🧠 Sakafo mifanaraka amin'ny toetr'andro mba hitazomana angovo sy fahasalamana.";
 
 let water = avg>27
-? "💧 Zava-dehibe: misotro rano be (hydration) hisorohana faharerahana sy hafanana tafahoatra."
-: "💧 Misotro rano tsy tapaka mandritra ny andro.";
+? "💧 Misotro rano be (tena zava-dehibe amin'ny hafanana)."
+: "💧 Misotro rano tsy tapaka.";
 
 let rainText = rain>50
-? "☔ Mety hisy orana → ento parapluie sy akanjo miaro."
+? "☔ Mety hisy orana → mitondra elo."
 : "";
 
 return `
@@ -299,6 +329,62 @@ return `
 }
 
 </script>
+  
+  <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+/* 🔥 CONFIG FIREBASE (tes vraies données) */
+const firebaseConfig = {
+apiKey: "AIzaSyCOrDvqhbK2i7E0AQSqpQ4BE486a0NDC7Q",
+authDomain: "tenue-du-jour.firebaseapp.com",
+projectId: "tenue-du-jour",
+storageBucket: "tenue-du-jour.firebasestorage.app",
+messagingSenderId: "1007963113669",
+appId: "1:1007963113669:web:f6bc1a46c3d1ec7b4e48ac",
+measurementId: "G-7TWR0MEEM1"
+};
+
+/* 🚀 INIT */
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* 📩 ENVOI MESSAGE */
+window.sendMessage = async function () {
+
+let name = document.getElementById("name").value.trim();
+let email = document.getElementById("email").value.trim();
+let msg = document.getElementById("msg").value.trim();
+
+let status = document.getElementById("status");
+
+if (!name || !email || !msg) {
+status.innerText = "⚠️ Remplis tous les champs";
+return;
+}
+
+try {
+await addDoc(collection(db, "messages"), {
+name,
+email,
+message: msg,
+time: serverTimestamp()
+});
+
+status.innerText = "✔ Message envoyé avec succès";
+
+document.getElementById("name").value = "";
+document.getElementById("email").value = "";
+document.getElementById("msg").value = "";
+
+} catch (e) {
+status.innerText = "❌ Erreur lors de l'envoi";
+console.log(e);
+}
+
+};
+
+  </script>
 
 </body>
 </html>
