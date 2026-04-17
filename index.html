@@ -134,19 +134,28 @@ alert("Tsy azo ny toerana");
 
 /* ---------------- GET PLACE NAME ---------------- */
 
-async function getPlaceName(lat,lon){
+async function getPlaceName(lat, lon){
 
 try{
-let res = await fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}`);
+let res = await fetch(
+`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=fr`
+);
+
 let data = await res.json();
 
-if(data && data.results && data.results.length>0){
-return data.results[0].name;
+/* ✔️ CAS 1 : nom trouvé */
+if(data?.results?.length > 0){
+let p = data.results[0];
+
+return `${p.name || "Tanàna tsy fantatra"}${p.admin1 ? " - " + p.admin1 : ""}`;
 }
 
-return "Toerana tsy fantatra";
+/* ✔️ CAS 2 : pas de résultat mais GPS OK */
+return `📍 Akaikin'ny toerana (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+
 }catch(e){
-return "Toerana tsy fantatra";
+/* ✔️ CAS 3 : erreur réseau */
+return `📍 Toerana GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 }
 }
 
@@ -270,61 +279,150 @@ return msg;
 }
 
 /* ---------------- HEALTHY FOOD + MEDICAL EXPLANATION ---------------- */
-
 function healthAdvice(all){
 
 let avg=all.reduce((a,b)=>a+b.t,0)/all.length;
 let rain=Math.max(...all.map(d=>d.r));
 
-let foodsCold = [
-"🍲 Lasopy mafana + vary + atody",
-"🥘 Hen'omby sy legioma mafana",
-"🍜 Paty na soupe mafana",
-"☕ Dite mafana + mofo"
-];
+/* ---------------- SAKAFO ---------------- */
 
-let foodsNormal = [
-"🍛 Vary + hena + trondro + legioma",
-"🥗 Salady + atody + voankazo",
-"🍗 Akoho sy vary + legioma maitso",
-"🍎 Voankazo + yaourt"
-];
+const meals = {
 
-let foodsHot = [
-"🥗 Salady mangatsiaka + voankazo",
-"🍉 Pastèque + manga + ananas",
-"🥤 Rano sy jus naturel",
-"🍚 Sakafo maivana (vary kely + trondro)"
-];
+maraina: {
+cold: [
+"🍲 Lasopy mafana + akondro + dite (250–350 kcal)",
+"🥖 Mofo + atody + ronono mafana (300 kcal)",
+"🍚 Vary malefaka + lasopy (350 kcal)",
+"🥣 Oats + tantely + ronono (300 kcal)",
+"🍌 Akondro + yaourt (250 kcal)",
+"🍵 Dite + mofo + fromazy (300 kcal)",
+"🥚 Omelette + mofo (350 kcal)"
+],
+normal: [
+"🍞 Mofo + atody + voankazo (300 kcal)",
+"🥣 Oats + ronono + voankazo (320 kcal)",
+"🍌 Akondro + yaourt (250 kcal)",
+"🍚 Vary + legioma + atody (350 kcal)",
+"🥪 Sandwich akoho (300 kcal)",
+"🍎 Voankazo + céréales (280 kcal)",
+"🥚 Omelette + legioma (320 kcal)"
+],
+hot: [
+"🍉 Voankazo + rano (200 kcal)",
+"🥗 Salady voankazo (250 kcal)",
+"🥛 Ronono mangatsiaka + akondro (200 kcal)",
+"🍚 Vary kely + concombre (300 kcal)",
+"🍍 Ananas + pastèque (200 kcal)",
+"🥤 Jus naturel (180 kcal)",
+"🍎 Paoma + yaourt (220 kcal)"
+]
+},
 
-let food="";
+midi: {
+cold: [
+"🍲 Vary + hena + lasopy mafana (600 kcal)",
+"🍛 Akoho + legioma + vary (650 kcal)",
+"🍜 Nouilles mafana + atody (600 kcal)",
+"🥘 Ragoût + vary (700 kcal)",
+"🍖 Hena + vomanga (650 kcal)",
+"🥣 Lasopy + mofo (550 kcal)",
+"🍗 Akoho + vary + legioma (650 kcal)"
+],
+normal: [
+"🍛 Vary + trondro + legioma (600 kcal)",
+"🍗 Akoho grillé + vary (650 kcal)",
+"🥗 Salady + hena + vary (550 kcal)",
+"🍜 Nouilles + legioma (600 kcal)",
+"🥘 Sakafo mifandanja (650 kcal)",
+"🍖 Omby + vary + legioma (700 kcal)",
+"🍚 Vary + atody (600 kcal)"
+],
+hot: [
+"🥗 Salady + trondro (500 kcal)",
+"🍉 Voankazo + vary kely (450 kcal)",
+"🍚 Vary mangatsiaka + legioma (500 kcal)",
+"🥤 Jus + sandwich (450 kcal)",
+"🍗 Akoho mangatsiaka + salady (550 kcal)",
+"🥗 Legioma + yaourt (400 kcal)",
+"🍍 Voankazo + noix (450 kcal)"
+]
+},
 
-if(avg<18){
-food = foodsCold[Math.floor(Math.random()*foodsCold.length)];
+hariva: {
+cold: [
+"🍲 Lasopy mafana + vary (400 kcal)",
+"🍛 Vary + legioma mafana (450 kcal)",
+"🥘 Omelette + lasopy (400 kcal)",
+"🍜 Nouilles mafana (450 kcal)",
+"🥣 Lasopy + mofo (350 kcal)",
+"🍗 Akoho maivana + legioma (450 kcal)",
+"🍖 Bouillon + vary (400 kcal)"
+],
+normal: [
+"🍚 Vary + legioma + atody (400 kcal)",
+"🍗 Akoho maivana + salady (450 kcal)",
+"🥗 Salady + vary (350 kcal)",
+"🍛 Vary + trondro (450 kcal)",
+"🥘 Hena maivana + legioma (400 kcal)",
+"🍜 Lasopy + mofo (350 kcal)",
+"🥣 Yaourt + voankazo (300 kcal)"
+],
+hot: [
+"🥗 Salady maivana (300 kcal)",
+"🍉 Voankazo + yaourt (250 kcal)",
+"🥤 Jus naturel (200 kcal)",
+"🍚 Vary kely + legioma (350 kcal)",
+"🍍 Ananas + pastèque (200 kcal)",
+"🥗 Concombre + salady (250 kcal)",
+"🍎 Voankazo (200 kcal)"
+]
 }
-else if(avg<26){
-food = foodsNormal[Math.floor(Math.random()*foodsNormal.length)];
+
+};
+
+/* ---------------- SAFIDY CLIMAT ---------------- */
+
+let climate =
+avg < 18 ? "cold" :
+avg < 26 ? "normal" : "hot";
+
+function pick(list){
+return list[Math.floor(Math.random()*list.length)];
 }
-else{
-food = foodsHot[Math.floor(Math.random()*foodsHot.length)];
-}
 
-let explain="🧠 Sakafo mifanaraka amin'ny toetr'andro mba hitazomana angovo sy fahasalamana.";
+let maraina = pick(meals.maraina[climate]);
+let midi = pick(meals.midi[climate]);
+let hariva = pick(meals.hariva[climate]);
 
-let water = avg>27
-? "💧 Misotro rano be (tena zava-dehibe amin'ny hafanana)."
-: "💧 Misotro rano tsy tapaka.";
+/* ---------------- TOROHEVITRA ---------------- */
 
-let rainText = rain>50
-? "☔ Mety hisy orana → mitondra elo."
+let rano =
+avg > 27
+? "💧 Misotro rano 2–3L isan'andro (hafanana be)"
+: avg < 18
+? "💧 Misotro zava-manafana (dite, lasopy)"
+: "💧 1.5–2L rano isan'andro";
+
+let medical =
+"🧠 Torohevitra: Ireo sakafo ireo dia natao hitazomana angovo, fifandanjana ara-batana ary fandevonan-kanina arakaraka ny toetr'andro.";
+
+let orana =
+rain > 50
+? "☔ Be orana → fadio sakafo mangatsiaka maraina"
 : "";
 
 return `
-<h3>🧠 Torohevitra ara-pahasalamana</h3>
-<p>${food}</p>
-<p>${explain}</p>
-<p>${water}</p>
-<p>${rainText}</p>
+<h3>🧠 Sakafo isan'andro (maraina / midi / hariva)</h3>
+
+<p><b>🌅 Maraina :</b> ${maraina}</p>
+<p><b>☀️ Midi :</b> ${midi}</p>
+<p><b>🌙 Hariva :</b> ${hariva}</p>
+
+<hr>
+
+<p>${medical}</p>
+<p>${rano}</p>
+<p>${orana}</p>
 `;
 }
 
