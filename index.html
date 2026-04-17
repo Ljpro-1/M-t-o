@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="mg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ny toetry ny andro anio</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:linear-gradient(135deg,#e0f2fe,#eef2ff);
+}
+
+header{
+background:#1e3a8a;
+color:white;
+padding:14px;
+text-align:center;
+font-weight:bold;
+}
+
+.container{
+padding:15px;
+max-width:900px;
+margin:auto;
+}
+
+.card{
+background:white;
+padding:15px;
+margin-top:12px;
+border-radius:12px;
+box-shadow:0 5px 15px rgba(0,0,0,0.1);
+}
+
+button{
+width:100%;
+padding:12px;
+margin-top:10px;
+border:none;
+border-radius:10px;
+background:#2563eb;
+color:white;
+font-weight:bold;
+cursor:pointer;
+}
+
+input, select{
+width:100%;
+padding:10px;
+margin-top:10px;
+border-radius:10px;
+border:1px solid #ddd;
+}
+
+.hidden{display:none;}
+
+#result{
+margin-top:15px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+🌦️ Ny toetry ny andro anio
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>👋 Tongasoa</h2>
+
+<button onclick="getLocalWeather()">🌍 Toetr'andro eo an-toerana</button>
+<button onclick="toggleTravel()">✈️ Toerana hafa</button>
+</div>
+
+<div class="card hidden" id="travel">
+<h3>✈️ Fikarohana toerana</h3>
+
+<input id="place" placeholder="Ampidiro tanàna na firenena">
+<button onclick="getTravelWeather()">Hikaroka</button>
+
+<button onclick="toggleTravel()" style="background:#6b7280">⬅ Miverina</button>
+</div>
+
+<div class="card" id="result"></div>
+
+</div>
+
+<script>
+
+/* ---------------- UI ---------------- */
+
+function toggleTravel(){
+document.getElementById("travel").classList.toggle("hidden");
+}
+
+/* ---------------- LOCAL WEATHER ---------------- */
+
+function getLocalWeather(){
+
+if(!navigator.geolocation){
+alert("Tsy manohana geolocation ny fitaovana");
+return;
+}
+
+navigator.geolocation.getCurrentPosition(async pos=>{
+let lat=pos.coords.latitude;
+let lon=pos.coords.longitude;
+
+let placeName = await getPlaceName(lat,lon);
+fetchWeather(lat,lon,placeName);
+
+},()=>{
+alert("Tsy azo ny toerana");
+});
+}
+
+/* ---------------- GET PLACE NAME ---------------- */
+
+async function getPlaceName(lat,lon){
+
+try{
+let res = await fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}`);
+let data = await res.json();
+
+if(data && data.results && data.results.length>0){
+return data.results[0].name;
+}
+
+return "Toerana tsy fantatra";
+}catch(e){
+return "Toerana tsy fantatra";
+}
+}
+
+/* ---------------- TRAVEL ---------------- */
+
+function getTravelWeather(){
+
+let place=document.getElementById("place").value.trim();
+
+if(!place){
+alert("Ampidiro toerana");
+return;
+}
+
+fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${place}`)
+.then(r=>r.json())
+.then(data=>{
+
+if(!data.results){
+alert("Tsy hita ny toerana");
+return;
+}
+
+let lat=data.results[0].latitude;
+let lon=data.results[0].longitude;
+
+fetchWeather(lat,lon,place);
+
+});
+}
+
+/* ---------------- WEATHER ---------------- */
+
+function fetchWeather(lat,lon,placeName){
+
+fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,weathercode,precipitation_probability&forecast_days=1`)
+.then(r=>r.json())
+.then(data=>{
+
+let h=data.hourly.time;
+let t=data.hourly.temperature_2m;
+let c=data.hourly.weathercode;
+let r=data.hourly.precipitation_probability;
+
+document.getElementById("result").innerHTML =
+analyzeDay(h,t,c,r,placeName);
+
+});
+}
+
+/* ---------------- ANALYSE DAY ---------------- */
+
+function analyzeDay(hours,temp,code,rain,placeName){
+
+let morning=[], noon=[], evening=[];
+
+for(let i=0;i<hours.length;i++){
+
+let hour=new Date(hours[i]).getHours();
+
+let obj={t:temp[i],c:code[i],r:rain[i]||0};
+
+if(hour>=5 && hour<11) morning.push(obj);
+else if(hour>=11 && hour<17) noon.push(obj);
+else evening.push(obj);
+}
+
+return `
+<h2>📍 ${placeName}</h2>
+
+<h3>🌦️ Famakafakana andro iray</h3>
+
+${buildSection("🌅 Maraina",morning)}
+${buildSection("☀️ Atoandro",noon)}
+${buildSection("🌙 Hariva",evening)}
+
+<hr>
+
+${healthAdvice([...morning,...noon,...evening])}
+`;
+}
+
+/* ---------------- SECTION ---------------- */
+
+function buildSection(title,data){
+
+if(data.length===0) return "";
+
+let avgT=data.reduce((a,b)=>a+b.t,0)/data.length;
+let maxR=Math.max(...data.map(d=>d.r));
+let code=data[0].c;
+
+return `
+<h3>${title}</h3>
+<p>🌡️ Hafanana: ${avgT.toFixed(1)}°C</p>
+<p>${clothes(avgT,code,maxR)}</p>
+`;
+}
+
+/* ---------------- CLOTHES ---------------- */
+
+function clothes(temp,code,rain){
+
+let msg="";
+
+if(rain>50){
+msg+="☔ Mety hisy orana → ento parapluie. ";
+}
+
+if(temp<18){
+msg+="🧥 Mangatsiaka → palitao + akanjo mafana. ";
+}
+else if(temp<26){
+msg+="👕 Antonony → akanjo maivana sy mahazo aina. ";
+}
+else{
+msg+="☀️ Mafana → t-shirt + short + solomaso. ";
+}
+
+return msg;
+}
+
+/* ---------------- HEALTHY FOOD + MEDICAL EXPLANATION ---------------- */
+
+function healthAdvice(all){
+
+let avg=all.reduce((a,b)=>a+b.t,0)/all.length;
+let rain=Math.max(...all.map(d=>d.r));
+
+let food="";
+let explain="";
+
+if(avg<18){
+food="🍲 Sakafo: lasopy mafana, vary, atody, legioma maitso.";
+explain="🧠 Antony: manome angovo sy hafanana ny vatana + vitamina B sy proteinina manampy hery.";
+}
+
+else if(avg<26){
+food="🍛 Sakafo: vary, hena, trondro, legioma, voankazo.";
+explain="🧠 Antony: mitazona fifandanjana ara-tsakafo (proteinina + vitamina + fibre) ho an'ny vatana salama.";
+}
+
+else{
+food="🥗 Sakafo: voankazo (manga, pastèque), salady, sakafo maivana.";
+explain="🧠 Antony: manampy rano sy vitamina C + manala hafanana tafahoatra amin'ny vatana.";
+}
+
+let water = avg>27
+? "💧 Zava-dehibe: misotro rano be (hydration) hisorohana faharerahana sy hafanana tafahoatra."
+: "💧 Misotro rano tsy tapaka mandritra ny andro.";
+
+let rainText = rain>50
+? "☔ Mety hisy orana → ento parapluie sy akanjo miaro."
+: "";
+
+return `
+<h3>🧠 Torohevitra ara-pahasalamana</h3>
+<p>${food}</p>
+<p>${explain}</p>
+<p>${water}</p>
+<p>${rainText}</p>
+`;
+}
+
+</script>
+
+</body>
+</html>
