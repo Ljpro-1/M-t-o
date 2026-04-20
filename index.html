@@ -179,19 +179,35 @@ return `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 /* SEARCH LOCATION */
 async function getTravelWeather(){
 
-let place=document.getElementById("place").value.trim();
+let place = document.getElementById("place").value.trim();
 
 if(!place){
 alert("Enter a place");
 return;
 }
 
-let data = await fetch(
-`https://geocoding-api.open-meteo.com/v1/search?name=${place}`
-).then(r=>r.json());
+let result = document.getElementById("result");
+result.innerHTML = "🔎 Searching...";
 
-if(!data.results || data.results.length === 0){
-alert("Location not found");
+try{
+
+let url =
+"https://geocoding-api.open-meteo.com/v1/search?name=" +
+encodeURIComponent(place) +
+"&count=1&language=en";
+
+let res = await fetch(url);
+
+if(!res.ok){
+throw new Error("HTTP " + res.status);
+}
+
+let data = await res.json();
+
+console.log(data);
+
+if(!data?.results?.length){
+result.innerHTML = "❌ Location not found";
 return;
 }
 
@@ -201,6 +217,12 @@ let lon = data.results[0].longitude;
 let realPlace = await getPlaceName(lat, lon);
 
 fetchWeather(lat, lon, realPlace);
+
+}catch(e){
+console.log(e);
+result.innerHTML = "❌ Network/API error";
+}
+
 }
 /* FETCH WEATHER */
 function fetchWeather(lat,lon,place){
