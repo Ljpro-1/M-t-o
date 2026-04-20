@@ -97,7 +97,6 @@ result.innerHTML = "❌ Geolocation not supported";
 return;
 }
 
-/* loading */
 result.innerHTML = "📍 Detecting your location...";
 
 navigator.geolocation.getCurrentPosition(
@@ -107,9 +106,6 @@ let lat = pos.coords.latitude;
 let lon = pos.coords.longitude;
 let accuracy = pos.coords.accuracy;
 
-
-
-/* show GPS info */
 result.innerHTML = `
 <p>📍 Location detected</p>
 <p>Latitude: ${lat.toFixed(4)}</p>
@@ -118,75 +114,49 @@ result.innerHTML = `
 <hr>
 `;
 
-/* fetch weather */
-let place = await getPlaceName (lat,lon);
-fetchWeather (lat,lon,place);
+let place = await getPlaceName(lat,lon);
+fetchWeather(lat,lon,place);
+
 },
-error => {
-
-result.innerHTML = `
-❌ Unable to get location<br>
-Reason: ${error.message}<br><br>
-
-👉 Try:
-- Activate GPS
-- Allow permission
-- Use HTTPS
-`;
+error=>{
+result.innerHTML = "❌ GPS error: " + error.message;
 },
 {
-enableHighAccuracy: true,
-timeout: 10000,
-maximumAge: 0
+enableHighAccuracy:true,
+timeout:10000,
+maximumAge:0
 }
 );
 }
-/* GET PLACE NAME */
+
+/* PLACE NAME */
 async function getPlaceName(lat, lon){
 
 try{
 let res = await fetch(
-`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`
+`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`
 );
 
 let data = await res.json();
 
-if(data?.results?.length > 0){
-let p = data.results[0];
-
-/* 🔥 MEILLEURE LOGIQUE RÉELLE */
-let zone =
-p?.name ||              // quartier ou ville locale
-p?.admin2 ||            // district (rare mais utile)
-"Unknown area";
-
-let region = p?.admin1 || "";
-let country = p?.country || "";
-
-/* FORMAT PROPRE */
-return [zone, region, country]
-.filter(Boolean)
-.join(", ");
-}
-
-/* fallback */
-return `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+return data.display_name || `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 
 }catch(e){
 return `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 }
 }
-/* SEARCH LOCATION */
+
+/* SEARCH WEATHER */
 async function getTravelWeather(){
 
 let place = document.getElementById("place").value.trim();
+let result = document.getElementById("result");
 
 if(!place){
 alert("Enter a place");
 return;
 }
 
-let result = document.getElementById("result");
 result.innerHTML = "🔎 Searching...";
 
 try{
@@ -197,14 +167,7 @@ encodeURIComponent(place) +
 "&count=1&language=en";
 
 let res = await fetch(url);
-
-if(!res.ok){
-throw new Error("HTTP " + res.status);
-}
-
 let data = await res.json();
-
-console.log(data);
 
 if(!data?.results?.length){
 result.innerHTML = "❌ Location not found";
@@ -214,36 +177,78 @@ return;
 let lat = data.results[0].latitude;
 let lon = data.results[0].longitude;
 
-let realPlace = await getPlaceName(lat, lon);
-
-fetchWeather(lat, lon, realPlace);
+let realPlace = await getPlaceName(lat,lon);
+fetchWeather(lat,lon,realPlace);
 
 }catch(e){
-console.log(e);
 result.innerHTML = "❌ Network/API error";
+console.log(e);
 }
 
 }
-/* FETCH WEATHER */
-function fetchWeather(lat,lon,place){
 
-fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability`)
-.then(r=>r.json())
-.then(data=>{
+/* WEATHER */
+function fetchWeather(lat, lon, place){
 
-if(!data.hourly){
-document.getElementById("result").innerHTML="Weather data error";
+const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability`;
+
+fetch(url)
+.then(response => {
+
+if(!response.ok){
+throw new Error("API error: " + response.status);
+}
+
+return response.json();
+
+})
+.then(data => {
+
+if(!data?.hourly){
+document.getElementById("result").innerHTML =
+"<p>❌ Weather data not available</p>";
 return;
 }
 
-let h=data.hourly.time;
-let t=data.hourly.temperature_2m;
-let r=data.hourly.precipitation_probability;
+/* 🌡 DATA EXTRACTION */
+const hours = data.hourly.time;
+const temps = data.hourly.temperature_2m;
+const rain = data.hourly.precipitation_probability;
 
-document.getElementById("result").innerHTML =
-analyzeDay(h,t,r,place,lat,lon);
+/* 🌡 CURRENT + EXTREMES */
+const currentTemp = temps[0];
+const maxTemp = Math.max(...temps);
+const minTemp = Math.min(...temps);
+
+/* 📦 MAIN OUTPUT */
+document.getElementById("result").innerHTML = `
+<h2>📍 ${place}</h2>
+
+<div class="card">
+<h3>🌡 Temperature</h3>
+<p>Current: <b>${currentTemp}°C</b></p>
+<p>Max: <b>${maxTemp}°C</b></p>
+<p>Min: <b>${minTemp}°C</b></p>
+</div>
+
+<div class="card">
+<h3>📊 Analysis</h3>
+${analyzeDay(hours, temps, rain, place, lat, lon)}
+</div>
+`;
+
+})
+.catch(error => {
+
+console.log(error);
+
+document.getElementById("result").innerHTML = `
+<p>❌ Failed to load weather</p>
+<p style="opacity:0.7">${error.message}</p>
+`;
 
 });
+
 }
 /* ANALYZE */
 function analyzeDay(hours,temp,rain,place,lat,lon){
@@ -251,19 +256,9 @@ function analyzeDay(hours,temp,rain,place,lat,lon){
 let avg=temp.reduce((a,b)=>a+b,0)/temp.length;
 let maxRain=Math.max(...rain);
 
-/* 🔥 CREATE TIME GROUPS */
-let morning=[], noon=[], evening=[];
+let timeGroups = groupTime(hours,temp,rain);
 
-for(let i=0;i<hours.length;i++){
-let h=new Date(hours[i]).getHours();
-
-let obj={t:temp[i],r:rain[i]};
-
-if(h<12) morning.push(obj);
-else if(h<18) noon.push(obj);
-else evening.push(obj);
-}
-
+/* FIX: no missing function anymore */
 return `
 <h2>${place}</h2>
 
@@ -280,73 +275,98 @@ ${getClothesAdvice(avg,maxRain)}
 ${getFoodAdvice(avg)}
 
 <hr>
-${healthAdvice([...morning,...noon,...evening])}
+
+${healthAdvice(timeGroups)}
 `;
+
 }
+
+/* FIXED MISSING FUNCTION */
+function groupTime(hours,temp,rain){
+
+let morning=[], noon=[], evening=[];
+
+for(let i=0;i<hours.length;i++){
+
+let h=new Date(hours[i]).getHours();
+
+let obj={t:temp[i],r:rain[i]};
+
+if(h<12) morning.push(obj);
+else if(h<18) noon.push(obj);
+else evening.push(obj);
+}
+
+return [...morning,...noon,...evening];
+}
+
 /* CLOTHES */
 function getClothesAdvice(temp, rain){
 
-let advice="";
-let explanation="";
+let advice = "";
+let explanation = "";
 
-/* pluie */
-if(rain>50){
-advice += "☔ Umbrella recommended<br>";
-explanation += "High rain probability can cause cold exposure and illness. Staying dry helps prevent flu.<br>";
+/* 🌧 PLUIE */
+if(rain > 60){
+advice += "☔ Waterproof jacket / raincoat + closed shoes<br>";
+explanation += "High precipitation increases risk of body cooling, humidity exposure and respiratory infections. Waterproof clothing prevents heat loss and keeps body temperature stable.<br>";
+}
+else if(rain > 30){
+advice += "🌦 Light waterproof layer or umbrella recommended<br>";
+explanation += "Moderate rain may cause discomfort and mild cooling. A light protective layer helps maintain thermal balance.<br>";
 }
 
-/* température */
-if(temp<15){
+/* 🌡 TEMPÉRATURE */
+if(temp < 15){
 advice += "🧥 Heavy jacket, sweater, long pants<br>";
-explanation += "Cold weather increases energy loss. Warm clothes help maintain body temperature and prevent hypothermia.<br>";
+explanation += "Cold conditions increase heat loss. Layered clothing improves insulation and prevents hypothermia risk.<br>";
 }
-else if(temp<22){
+else if(temp < 22){
 advice += "🧥 Light jacket or long sleeves<br>";
-explanation += "Moderate temperature — light protection keeps comfort without overheating.<br>";
+explanation += "Mild temperature requires moderate insulation to maintain comfort without overheating.<br>";
 }
-else if(temp<30){
-advice += "👕 T-shirt, breathable clothes<br>";
-explanation += "Body needs to release heat. Light clothes improve ventilation and comfort.<br>";
+else if(temp < 30){
+advice += "👕 Breathable cotton clothes, light fabrics<br>";
+explanation += "Warm conditions require ventilation to regulate body temperature and avoid heat stress.<br>";
 }
 else{
-advice += "☀️ Very light clothes, shorts, sunglasses<br>";
-explanation += "High heat increases dehydration risk. Light clothes reduce heat stress.<br>";
+advice += "☀️ Very light clothing, UV protection, hat<br>";
+explanation += "High heat increases dehydration and UV exposure risk. Light reflective clothing improves thermoregulation.<br>";
 }
 
 return `
-<h3>👕 Clothing Advice</h3>
+<h3>👕 Professional Clothing Advice</h3>
 <p>${advice}</p>
-<p>🧠 ${explanation}</p>
+<p>🧠 Health Explanation: ${explanation}</p>
 `;
 }
-/* FOOD SYSTEM (UPGRADED 30+) */
-function getFoodAdvice(temp){
+/* FOOD */
+function getFoodAdvice(temp, rain){
 
-const foods = {
+let foods = {
 cold:[
-{meal:"Hot soup + bread",exp:"Provides warmth and easy digestion."},
-{meal:"Oatmeal + milk",exp:"Rich in slow energy and keeps you full."},
-{meal:"Chicken stew",exp:"High protein helps body fight cold."},
-{meal:"Pasta + cheese",exp:"Carbohydrates give energy in cold weather."},
-{meal:"Hot chocolate + sandwich",exp:"Boosts calories and warmth."}
+{meal:"Hot vegetable soup + whole grain bread",exp:"Improves body warmth, hydration and immune support."},
+{meal:"Oatmeal with milk and banana",exp:"Slow-release energy and digestive comfort in cold climate."},
+{meal:"Rice with vegetables and chicken stew",exp:"Balanced protein and carbohydrates for energy maintenance."},
+{meal:"Hot tea + eggs + toast",exp:"Supports metabolism and warmth regulation."}
 ],
+
 normal:[
-{meal:"Chicken salad",exp:"Balanced protein and vitamins."},
-{meal:"Rice + fish",exp:"Light but nutritious meal."},
-{meal:"Sandwich + juice",exp:"Quick energy and hydration."},
-{meal:"Pasta + vegetables",exp:"Good balance of carbs and fiber."},
-{meal:"Eggs + toast",exp:"Protein supports muscle and energy."}
+{meal:"Grilled fish + rice + vegetables",exp:"Balanced micronutrients and healthy protein intake."},
+{meal:"Chicken salad with olive oil",exp:"Supports muscle recovery and immune system."},
+{meal:"Rice + legumes + vegetables",exp:"Good fiber, protein and steady energy release."},
+{meal:"Fruit + yogurt + nuts",exp:"Supports digestion and gut health."}
 ],
+
 hot:[
-{meal:"Fruit salad",exp:"Rich in water and vitamins."},
-{meal:"Watermelon",exp:"Very hydrating and refreshing."},
-{meal:"Cold pasta",exp:"Light energy without overheating."},
-{meal:"Yogurt + fruit",exp:"Easy digestion and cooling effect."},
-{meal:"Salad + tuna",exp:"Protein without heaviness."}
+{meal:"Fresh fruits (watermelon, mango, pineapple)",exp:"Hydration and vitamin C for heat stress prevention."},
+{meal:"Cold rice salad with vegetables",exp:"Light digestion to reduce metabolic heat."},
+{meal:"Yogurt + fruits + honey",exp:"Supports hydration and gut balance."},
+{meal:"Light fish + salad",exp:"High protein without overheating the body."}
 ]
 };
 
-let type = temp<18?"cold":temp<26?"normal":"hot";
+let type = temp < 18 ? "cold" : temp < 26 ? "normal" : "hot";
 
 function pick(arr){
 return arr[Math.floor(Math.random()*arr.length)];
@@ -357,109 +377,189 @@ let l = pick(foods[type]);
 let d = pick(foods[type]);
 
 return `
-<h3>🍽 Food Suggestions</h3>
+<h3>🍽 Professional Nutrition Advice</h3>
 
 <p><b>Breakfast:</b> ${b.meal}<br>🧠 ${b.exp}</p>
 <p><b>Lunch:</b> ${l.meal}<br>🧠 ${l.exp}</p>
 <p><b>Dinner:</b> ${d.meal}<br>🧠 ${d.exp}</p>
+
+<p style="margin-top:10px;opacity:0.8">
+⚕️ Based on climate adaptation principles: hydration, thermoregulation, and balanced macronutrients.
+</p>
 `;
 }
-/* Drink */
+
+/* DRINK */
 function getDrinkAdvice(temp, rain){
 
 let drinks = [];
 let explanation = "";
 
-/* 🔹 CAS CHAUD */
+/* 🌡 CHAUD */
 if(temp >= 26){
 
 if(rain > 50){
 drinks = [
-"🥤 Fresh juice",
-"🥥 Coconut water",
-"🍵 Light warm tea (for humidity)",
-"💧 Mineral water"
+"💧 Mineral water (frequent small intake)",
+"🥥 Coconut water (electrolytes)",
+"🍵 Light herbal tea (temperature regulation)",
+"🥤 Fresh fruit juice (vitamin boost)"
 ];
 
-explanation = "Hot and rainy weather creates humidity, which reduces sweat evaporation. Light hydration with minerals is important to avoid fatigue.";
+explanation = "Hot and humid conditions increase sweating and electrolyte loss. Hydration must focus on minerals and frequent intake to prevent dehydration and fatigue.";
 }
 else{
 drinks = [
-"🥶 Cold water",
-"🥤 Fresh fruit juice",
+"💧 Cold water",
 "🥥 Coconut water",
-"🧊 Lemon water"
+"🥤 Natural fruit juice",
+"🧊 Infused water (lemon/mint)"
 ];
 
-explanation = "High heat increases sweating. Cold and hydrating drinks help maintain fluid balance and prevent dehydration.";
+explanation = "High temperature increases water loss through sweating. Cold fluids help regulate body temperature and prevent heat stress.";
 }
 
 }
 
-/* 🔹 TEMPÉRATURE MODÉRÉE */
+/* 🌤 TEMPÉRÉ */
 else if(temp >= 18){
 
 if(rain > 50){
 drinks = [
-"☕ Warm tea",
-"🥛 Milk",
-"🍵 Herbal tea",
-"💧 Water"
+"☕ Warm tea (ginger or herbal)",
+"💧 Water (room temperature)",
+"🥛 Milk (energy support)",
+"🍵 Light soup broth"
 ];
 
-explanation = "Rainy weather can cool the body. Warm drinks help maintain comfort and prevent mild cold.";
+explanation = "Rainy conditions reduce body temperature. Warm drinks help maintain internal thermal balance and reduce cold-related fatigue.";
 }
 else{
 drinks = [
 "💧 Water",
-"🥤 Natural juice",
+"🥤 Fresh juice",
 "🥛 Milk",
-"🍹 Smoothie"
+"🍹 Smooth smoothie"
 ];
 
-explanation = "Balanced weather requires normal hydration to keep energy stable.";
+explanation = "Moderate weather requires stable hydration to support metabolism and energy levels.";
 }
 
 }
 
-/* 🔹 FROID */
+/* ❄️ FROID */
 else{
 
 if(rain > 50){
 drinks = [
-"🔥 Hot tea",
-"☕ Coffee",
+"🔥 Hot tea (ginger recommended)",
+"☕ Coffee (moderate)",
 "🍫 Hot chocolate",
-"🍲 Soup"
+"🍵 Herbal infusion"
 ];
 
-explanation = "Cold and wet conditions increase risk of illness. Hot drinks help maintain body temperature.";
+explanation = "Cold and wet conditions increase risk of respiratory illness. Warm drinks support circulation and immune protection.";
 }
 else{
 drinks = [
 "☕ Tea",
 "🥛 Warm milk",
 "🍫 Hot chocolate",
-"🍵 Herbal tea"
+"🍵 Herbal infusion"
 ];
 
-explanation = "Cold weather requires warm drinks to support body heat and circulation.";
+explanation = "Cold dry conditions require warm hydration to maintain body heat and prevent energy loss.";
 }
 
 }
 
-/* RANDOM DRINK */
 let drink = drinks[Math.floor(Math.random()*drinks.length)];
 
 return `
-<h3>🥤 Smart Drink Suggestions</h3>
+<h3>🥤 Professional Hydration Advice</h3>
 <p><b>Recommended:</b> ${drink}</p>
-<p>🧠 ${explanation}</p>
+<p>🧠 Health Explanation: ${explanation}</p>
+
+<p style="opacity:0.8;margin-top:8px">
+⚕️ Hydration strategy is based on temperature regulation, electrolyte balance, and metabolic demand.
+</p>
+`;
+}
+/* FIXED healthAdvice (was missing before)*/
+function healthAdvice(data){
+
+if(!data || data.length === 0){
+return `
+<h3>🧠 Health Analysis</h3>
+<p>No data available.</p>
+`;
+}
+
+/* 🔍 ANALYSE RISQUES */
+let rainRisk = data.filter(x => x.r > 60).length;
+let heatRisk = data.filter(x => x.t > 30).length;
+let coldRisk = data.filter(x => x.t < 15).length;
+
+/* 📊 SCORE GLOBAL (0–100) */
+let score = 100;
+
+score -= rainRisk * 10;
+score -= heatRisk * 8;
+score -= coldRisk * 8;
+
+if(score < 0) score = 0;
+
+/* 🧠 INTERPRÉTATION */
+let status = "";
+let advice = "";
+
+if(score >= 80){
+status = "✅ Good weather conditions";
+advice = "Normal activity is safe. Maintain regular hydration and balanced meals.";
+}
+else if(score >= 50){
+status = "⚠️ Moderate risk conditions";
+advice = "Be careful with hydration and clothing. Avoid long exposure to heat or rain.";
+}
+else{
+status = "🚨 High health risk conditions";
+advice = "Limit outdoor activity. Increase hydration, wear protective clothing, and monitor body temperature.";
+}
+
+/* 🌡 DETAIL RISKS */
+let details = "";
+
+if(rainRisk > 0){
+details += `🌧 Rain exposure periods detected: ${rainRisk}<br>`;
+}
+if(heatRisk > 0){
+details += `🔥 High temperature periods: ${heatRisk}<br>`;
+}
+if(coldRisk > 0){
+details += `❄️ Low temperature periods: ${coldRisk}<br>`;
+}
+
+/* OUTPUT */
+return `
+<h3>🧠 Health Risk Analysis</h3>
+
+<p><b>Status:</b> ${status}</p>
+<p><b>Health Score:</b> ${score}/100</p>
+
+<hr>
+
+<p>${details}</p>
+
+<p><b>Advice:</b> ${advice}</p>
+
+<p style="margin-top:10px;opacity:0.8">
+⚕️ Based on thermal stress, humidity exposure, and temperature extremes.
+</p>
 `;
 }
 </script>
 
-<!-- FIREBASE -->
+<!-- FIREBASE (CORRECTED BUT SAME CONFIG) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
@@ -474,17 +574,33 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 window.sendMessage = async function(){
-let name = document.getElementById("name").value;
-let email = document.getElementById("email").value;
-let msg = document.getElementById("msg").value;
-let status = document.getElementById("status");
+
+let name=document.getElementById("name").value.trim();
+let email=document.getElementById("email").value.trim();
+let msg=document.getElementById("msg").value.trim();
+let status=document.getElementById("status");
+
+if(!name || !email || !msg){
+status.innerText="❌ Fill all fields";
+return;
+}
+
+try{
 
 await addDoc(collection(db,"messages"),{
 name,email,message:msg,time:serverTimestamp()
 });
 
-status.innerText="Message sent!";
+status.innerText="✅ Sent!";
+document.getElementById("msg").value="";
+
+}catch(e){
+status.innerText="❌ Firebase error";
+console.log(e);
+}
+
 };
+
 </script>
 
 </body>
