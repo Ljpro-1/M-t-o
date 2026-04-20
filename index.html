@@ -1,27 +1,9 @@
 <!DOCTYPE html>
-<html lang="mg">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ny toetry ny andro anio</title>
-  <style>
-
-h2, h3{
-color:#1e3a8a;
-}
-
-p{
-color:#334155;
-}
-
-.card p{
-color:#475569;
-}
-
-  
-
-
-
+<title>Weather Today</title>
 
 <style>
 body{
@@ -31,37 +13,21 @@ background:#0b1220;
 color:white;
 }
 
-/* HEADER */
 header{
 background:#111827;
-color:white;
 padding:16px;
 text-align:center;
 font-weight:bold;
-box-shadow:0 2px 10px rgba(0,0,0,0.4);
 }
 
-/* TITRES */
-h1, h2, h3{
-color:white;
-}
-
-/* TEXTES */
-p{
-color:white;
-}
-
-/* CARDS (GRIS SIMPLE) */
 .card{
-background:#1f2937; /* gris pur */
+background:#1f2937;
 padding:15px;
-margin-top:12px;
+margin:12px;
 border-radius:14px;
-border:1px solid #4b5563; /* gris clair */
-box-shadow:0 3px 10px rgba(0,0,0,0.3);
+border:1px solid #4b5563;
 }
 
-/* BUTTONS */
 button{
 width:100%;
 padding:12px;
@@ -74,12 +40,7 @@ font-weight:bold;
 cursor:pointer;
 }
 
-button:hover{
-opacity:0.9;
-}
-
-/* INPUTS */
-input, select{
+input{
 width:100%;
 padding:10px;
 margin-top:10px;
@@ -87,448 +48,422 @@ border-radius:10px;
 border:1px solid #4b5563;
 background:#111827;
 color:white;
-outline:none;
-}
-
-input:focus{
-border-color:#9ca3af;
-box-shadow:0 0 6px rgba(156,163,175,0.3);
-}
-
-/* RESULT */
-#result{
-margin-top:15px;
-color:white;
 }
 
 .hidden{display:none;}
-
-
-
 </style>
 </head>
 
 <body>
 
-<header>
-🌦️ Ny toetry ny andro anio
-</header>
-
-<div class="container">
+<header>🌦️ Weather Today</header>
 
 <div class="card">
-<h2>👋 Tongasoa</h2>
-
-<button onclick="getLocalWeather()">🌍 Toetr'andro eo an-toerana</button>
-<button onclick="toggleTravel()">✈️ Toerana hafa</button>
+<button onclick="getLocalWeather()">🌍 Local Weather</button>
+<button onclick="toggleTravel()">✈️ Other Location</button>
 </div>
 
 <div class="card hidden" id="travel">
-<h3>✈️ Fikarohana toerana</h3>
-
-<input id="place" placeholder="Ampidiro tanàna na firenena">
-<button onclick="getTravelWeather()">Hikaroka</button>
-
-<button onclick="toggleTravel()" style="background:#6b7280">⬅ Miverina</button>
+<input id="place" placeholder="Enter city">
+<button onclick="getTravelWeather()">Search</button>
+<button onclick="toggleTravel()">Back</button>
 </div>
 
 <div class="card" id="result"></div>
-  
-<!-- 📩 CONTACT (à ajouter ici) -->
-<div class="card">
-<h3>📩 Contactez-nous</h3>
 
-<input id="name" placeholder="Nom">
+<div class="card">
+<h3>📩 Contact</h3>
+<input id="name" placeholder="Name">
 <input id="email" placeholder="Email">
 <input id="msg" placeholder="Message">
-
-<button onclick="sendMessage()">Envoyer</button>
-
+<button onclick="sendMessage()">Send</button>
 <p id="status"></p>
-</div>
-
 </div>
 
 <script>
 
-/* ---------------- UI ---------------- */
-
+/* UI */
 function toggleTravel(){
 document.getElementById("travel").classList.toggle("hidden");
 }
 
-/* ---------------- LOCAL WEATHER ---------------- */
-
+/* LOCAL WEATHER */
 function getLocalWeather(){
 
+let result = document.getElementById("result");
+
 if(!navigator.geolocation){
-alert("Tsy manohana geolocation ny fitaovana");
+result.innerHTML = "❌ Geolocation not supported";
 return;
 }
 
-navigator.geolocation.getCurrentPosition(async pos=>{
-let lat=pos.coords.latitude;
-let lon=pos.coords.longitude;
+/* loading */
+result.innerHTML = "📍 Detecting your location...";
 
-let placeName = await getPlaceName(lat,lon);
-fetchWeather(lat,lon,placeName);
+navigator.geolocation.getCurrentPosition(
+async pos => {
 
-},()=>{
-alert("Tsy azo ny toerana");
-});
+let lat = pos.coords.latitude;
+let lon = pos.coords.longitude;
+let accuracy = pos.coords.accuracy;
+
+
+
+/* show GPS info */
+result.innerHTML = `
+<p>📍 Location detected</p>
+<p>Latitude: ${lat.toFixed(4)}</p>
+<p>Longitude: ${lon.toFixed(4)}</p>
+<p>Accuracy: ±${Math.round(accuracy)} meters</p>
+<hr>
+`;
+
+/* fetch weather */
+let place = await getPlaceName (lat,lon);
+fetchWeather (lat,lon,place);
+},
+error => {
+
+result.innerHTML = `
+❌ Unable to get location<br>
+Reason: ${error.message}<br><br>
+
+👉 Try:
+- Activate GPS
+- Allow permission
+- Use HTTPS
+`;
+},
+{
+enableHighAccuracy: true,
+timeout: 10000,
+maximumAge: 0
 }
-
-/* ---------------- GET PLACE NAME ---------------- */
-
+);
+}
+/* GET PLACE NAME */
 async function getPlaceName(lat, lon){
 
 try{
 let res = await fetch(
-`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=fr`
+`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`
 );
 
 let data = await res.json();
 
-/* ✔️ CAS 1 : nom trouvé */
 if(data?.results?.length > 0){
 let p = data.results[0];
 
-return `${p.name || "Tanàna tsy fantatra"}${p.admin1 ? " - " + p.admin1 : ""}`;
+/* 🔥 MEILLEURE LOGIQUE RÉELLE */
+let zone =
+p?.name ||              // quartier ou ville locale
+p?.admin2 ||            // district (rare mais utile)
+"Unknown area";
+
+let region = p?.admin1 || "";
+let country = p?.country || "";
+
+/* FORMAT PROPRE */
+return [zone, region, country]
+.filter(Boolean)
+.join(", ");
 }
 
-/* ✔️ CAS 2 : pas de résultat mais GPS OK */
-return `📍 Akaikin'ny toerana (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+/* fallback */
+return `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 
 }catch(e){
-/* ✔️ CAS 3 : erreur réseau */
-return `📍 Toerana GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+return `GPS (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
 }
 }
-
-/* ---------------- TRAVEL ---------------- */
-
-function getTravelWeather(){
+/* SEARCH LOCATION */
+async function getTravelWeather(){
 
 let place=document.getElementById("place").value.trim();
 
 if(!place){
-alert("Ampidiro toerana");
+alert("Enter a place");
 return;
 }
 
-fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${place}`)
-.then(r=>r.json())
-.then(data=>{
+let data = await fetch(
+`https://geocoding-api.open-meteo.com/v1/search?name=${place}`
+).then(r=>r.json());
 
-if(!data.results){
-alert("Tsy hita ny toerana");
+if(!data.results || data.results.length === 0){
+alert("Location not found");
 return;
 }
 
-let lat=data.results[0].latitude;
-let lon=data.results[0].longitude;
+let lat = data.results[0].latitude;
+let lon = data.results[0].longitude;
 
-fetchWeather(lat,lon,place);
+let realPlace = await getPlaceName(lat, lon);
 
-});
+fetchWeather(lat, lon, realPlace);
 }
+/* FETCH WEATHER */
+function fetchWeather(lat,lon,place){
 
-/* ---------------- WEATHER ---------------- */
-
-function fetchWeather(lat,lon,placeName){
-
-fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,weathercode,precipitation_probability&forecast_days=1`)
+fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability`)
 .then(r=>r.json())
 .then(data=>{
+
+if(!data.hourly){
+document.getElementById("result").innerHTML="Weather data error";
+return;
+}
 
 let h=data.hourly.time;
 let t=data.hourly.temperature_2m;
-let c=data.hourly.weathercode;
 let r=data.hourly.precipitation_probability;
 
 document.getElementById("result").innerHTML =
-analyzeDay(h,t,c,r,placeName);
+analyzeDay(h,t,r,place,lat,lon);
 
 });
 }
+/* ANALYZE */
+function analyzeDay(hours,temp,rain,place,lat,lon){
 
-/* ---------------- ANALYSE DAY ---------------- */
+let avg=temp.reduce((a,b)=>a+b,0)/temp.length;
+let maxRain=Math.max(...rain);
 
-function analyzeDay(hours,temp,code,rain,placeName){
-
+/* 🔥 CREATE TIME GROUPS */
 let morning=[], noon=[], evening=[];
 
 for(let i=0;i<hours.length;i++){
+let h=new Date(hours[i]).getHours();
 
-let hour=new Date(hours[i]).getHours();
+let obj={t:temp[i],r:rain[i]};
 
-let obj={t:temp[i],c:code[i],r:rain[i]||0};
-
-if(hour>=5 && hour<11) morning.push(obj);
-else if(hour>=11 && hour<17) noon.push(obj);
+if(h<12) morning.push(obj);
+else if(h<18) noon.push(obj);
 else evening.push(obj);
 }
 
 return `
-<h2>📍 ${placeName}</h2>
+<h2>${place}</h2>
 
-<h3>🌦️ Famakafakana andro iray</h3>
+<p>
+<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">
+📍 View on Map
+</a>
+</p>
 
-${buildSection("🌅 Maraina",morning)}
-${buildSection("☀️ Atoandro",noon)}
-${buildSection("🌙 Hariva",evening)}
+<h3>🌦️ Day Analysis</h3>
+
+${getDrinkAdvice(avg,maxRain)}
+${getClothesAdvice(avg,maxRain)}
+${getFoodAdvice(avg)}
 
 <hr>
-
 ${healthAdvice([...morning,...noon,...evening])}
 `;
 }
+/* CLOTHES */
+function getClothesAdvice(temp, rain){
 
-/* ---------------- SECTION ---------------- */
+let advice="";
+let explanation="";
 
-function buildSection(title,data){
-
-if(data.length===0) return "";
-
-let avgT=data.reduce((a,b)=>a+b.t,0)/data.length;
-let maxR=Math.max(...data.map(d=>d.r));
-let code=data[0].c;
-
-return `
-<h3>${title}</h3>
-<p>🌡️ Hafanana: ${avgT.toFixed(1)}°C</p>
-<p>${clothes(avgT,code,maxR)}</p>
-`;
-}
-
-/* ---------------- CLOTHES ---------------- */
-
-function clothes(temp,code,rain){
-
-let msg="";
-
+/* pluie */
 if(rain>50){
-msg+="☔ Mety hisy orana → ento parapluie. ";
+advice += "☔ Umbrella recommended<br>";
+explanation += "High rain probability can cause cold exposure and illness. Staying dry helps prevent flu.<br>";
 }
 
-if(temp<18){
-msg+="🧥 Mangatsiaka → palitao + akanjo mafana. ";
+/* température */
+if(temp<15){
+advice += "🧥 Heavy jacket, sweater, long pants<br>";
+explanation += "Cold weather increases energy loss. Warm clothes help maintain body temperature and prevent hypothermia.<br>";
 }
-else if(temp<26){
-msg+="👕 Antonony → akanjo maivana sy mahazo aina. ";
+else if(temp<22){
+advice += "🧥 Light jacket or long sleeves<br>";
+explanation += "Moderate temperature — light protection keeps comfort without overheating.<br>";
+}
+else if(temp<30){
+advice += "👕 T-shirt, breathable clothes<br>";
+explanation += "Body needs to release heat. Light clothes improve ventilation and comfort.<br>";
 }
 else{
-msg+="☀️ Mafana → t-shirt + short + solomaso. ";
+advice += "☀️ Very light clothes, shorts, sunglasses<br>";
+explanation += "High heat increases dehydration risk. Light clothes reduce heat stress.<br>";
 }
-
-return msg;
-}
-
-/* ---------------- HEALTHY FOOD + MEDICAL EXPLANATION ---------------- */
-function healthAdvice(all){
-
-let avg=all.reduce((a,b)=>a+b.t,0)/all.length;
-let rain=Math.max(...all.map(d=>d.r));
-
-/* ---------------- SAKAFO ---------------- */
-
-const meals = {
-
-maraina: {
-cold: [
-"🍲 Lasopy mafana + akondro + dite (250–350 kcal)",
-"🥖 Mofo + atody + ronono mafana (300 kcal)",
-"🍚 Vary malefaka + lasopy (350 kcal)",
-"🥣 Oats + tantely + ronono (300 kcal)",
-"🍌 Akondro + yaourt (250 kcal)",
-"🍵 Dite + mofo + fromazy (300 kcal)",
-"🥚 Omelette + mofo (350 kcal)"
-],
-normal: [
-"🍞 Mofo + atody + voankazo (300 kcal)",
-"🥣 Oats + ronono + voankazo (320 kcal)",
-"🍌 Akondro + yaourt (250 kcal)",
-"🍚 Vary + legioma + atody (350 kcal)",
-"🥪 Sandwich akoho (300 kcal)",
-"🍎 Voankazo + céréales (280 kcal)",
-"🥚 Omelette + legioma (320 kcal)"
-],
-hot: [
-"🍉 Voankazo + rano (200 kcal)",
-"🥗 Salady voankazo (250 kcal)",
-"🥛 Ronono mangatsiaka + akondro (200 kcal)",
-"🍚 Vary kely + concombre (300 kcal)",
-"🍍 Ananas + pastèque (200 kcal)",
-"🥤 Jus naturel (180 kcal)",
-"🍎 Paoma + yaourt (220 kcal)"
-]
-},
-
-midi: {
-cold: [
-"🍲 Vary + hena + lasopy mafana (600 kcal)",
-"🍛 Akoho + legioma + vary (650 kcal)",
-"🍜 Nouilles mafana + atody (600 kcal)",
-"🥘 Ragoût + vary (700 kcal)",
-"🍖 Hena + vomanga (650 kcal)",
-"🥣 Lasopy + mofo (550 kcal)",
-"🍗 Akoho + vary + legioma (650 kcal)"
-],
-normal: [
-"🍛 Vary + trondro + legioma (600 kcal)",
-"🍗 Akoho grillé + vary (650 kcal)",
-"🥗 Salady + hena + vary (550 kcal)",
-"🍜 Nouilles + legioma (600 kcal)",
-"🥘 Sakafo mifandanja (650 kcal)",
-"🍖 Omby + vary + legioma (700 kcal)",
-"🍚 Vary + atody (600 kcal)"
-],
-hot: [
-"🥗 Salady + trondro (500 kcal)",
-"🍉 Voankazo + vary kely (450 kcal)",
-"🍚 Vary mangatsiaka + legioma (500 kcal)",
-"🥤 Jus + sandwich (450 kcal)",
-"🍗 Akoho mangatsiaka + salady (550 kcal)",
-"🥗 Legioma + yaourt (400 kcal)",
-"🍍 Voankazo + noix (450 kcal)"
-]
-},
-
-hariva: {
-cold: [
-"🍲 Lasopy mafana + vary (400 kcal)",
-"🍛 Vary + legioma mafana (450 kcal)",
-"🥘 Omelette + lasopy (400 kcal)",
-"🍜 Nouilles mafana (450 kcal)",
-"🥣 Lasopy + mofo (350 kcal)",
-"🍗 Akoho maivana + legioma (450 kcal)",
-"🍖 Bouillon + vary (400 kcal)"
-],
-normal: [
-"🍚 Vary + legioma + atody (400 kcal)",
-"🍗 Akoho maivana + salady (450 kcal)",
-"🥗 Salady + vary (350 kcal)",
-"🍛 Vary + trondro (450 kcal)",
-"🥘 Hena maivana + legioma (400 kcal)",
-"🍜 Lasopy + mofo (350 kcal)",
-"🥣 Yaourt + voankazo (300 kcal)"
-],
-hot: [
-"🥗 Salady maivana (300 kcal)",
-"🍉 Voankazo + yaourt (250 kcal)",
-"🥤 Jus naturel (200 kcal)",
-"🍚 Vary kely + legioma (350 kcal)",
-"🍍 Ananas + pastèque (200 kcal)",
-"🥗 Concombre + salady (250 kcal)",
-"🍎 Voankazo (200 kcal)"
-]
-}
-
-};
-
-/* ---------------- SAFIDY CLIMAT ---------------- */
-
-let climate =
-avg < 18 ? "cold" :
-avg < 26 ? "normal" : "hot";
-
-function pick(list){
-return list[Math.floor(Math.random()*list.length)];
-}
-
-let maraina = pick(meals.maraina[climate]);
-let midi = pick(meals.midi[climate]);
-let hariva = pick(meals.hariva[climate]);
-
-/* ---------------- TOROHEVITRA ---------------- */
-
-let rano =
-avg > 27
-? "💧 Misotro rano 2–3L isan'andro (hafanana be)"
-: avg < 18
-? "💧 Misotro zava-manafana (dite, lasopy)"
-: "💧 1.5–2L rano isan'andro";
-
-let medical =
-"🧠 Torohevitra: Ireo sakafo ireo dia natao hitazomana angovo, fifandanjana ara-batana ary fandevonan-kanina arakaraka ny toetr'andro.";
-
-let orana =
-rain > 50
-? "☔ Be orana → fadio sakafo mangatsiaka maraina"
-: "";
 
 return `
-<h3>🧠 Sakafo isan'andro (maraina / midi / hariva)</h3>
-
-<p><b>🌅 Maraina :</b> ${maraina}</p>
-<p><b>☀️ Midi :</b> ${midi}</p>
-<p><b>🌙 Hariva :</b> ${hariva}</p>
-
-<hr>
-
-<p>${medical}</p>
-<p>${rano}</p>
-<p>${orana}</p>
+<h3>👕 Clothing Advice</h3>
+<p>${advice}</p>
+<p>🧠 ${explanation}</p>
 `;
 }
+/* FOOD SYSTEM (UPGRADED 30+) */
+function getFoodAdvice(temp){
 
+const foods = {
+cold:[
+{meal:"Hot soup + bread",exp:"Provides warmth and easy digestion."},
+{meal:"Oatmeal + milk",exp:"Rich in slow energy and keeps you full."},
+{meal:"Chicken stew",exp:"High protein helps body fight cold."},
+{meal:"Pasta + cheese",exp:"Carbohydrates give energy in cold weather."},
+{meal:"Hot chocolate + sandwich",exp:"Boosts calories and warmth."}
+],
+normal:[
+{meal:"Chicken salad",exp:"Balanced protein and vitamins."},
+{meal:"Rice + fish",exp:"Light but nutritious meal."},
+{meal:"Sandwich + juice",exp:"Quick energy and hydration."},
+{meal:"Pasta + vegetables",exp:"Good balance of carbs and fiber."},
+{meal:"Eggs + toast",exp:"Protein supports muscle and energy."}
+],
+hot:[
+{meal:"Fruit salad",exp:"Rich in water and vitamins."},
+{meal:"Watermelon",exp:"Very hydrating and refreshing."},
+{meal:"Cold pasta",exp:"Light energy without overheating."},
+{meal:"Yogurt + fruit",exp:"Easy digestion and cooling effect."},
+{meal:"Salad + tuna",exp:"Protein without heaviness."}
+]
+};
+
+let type = temp<18?"cold":temp<26?"normal":"hot";
+
+function pick(arr){
+return arr[Math.floor(Math.random()*arr.length)];
+}
+
+let b = pick(foods[type]);
+let l = pick(foods[type]);
+let d = pick(foods[type]);
+
+return `
+<h3>🍽 Food Suggestions</h3>
+
+<p><b>Breakfast:</b> ${b.meal}<br>🧠 ${b.exp}</p>
+<p><b>Lunch:</b> ${l.meal}<br>🧠 ${l.exp}</p>
+<p><b>Dinner:</b> ${d.meal}<br>🧠 ${d.exp}</p>
+`;
+}
+/* Drink */
+function getDrinkAdvice(temp, rain){
+
+let drinks = [];
+let explanation = "";
+
+/* 🔹 CAS CHAUD */
+if(temp >= 26){
+
+if(rain > 50){
+drinks = [
+"🥤 Fresh juice",
+"🥥 Coconut water",
+"🍵 Light warm tea (for humidity)",
+"💧 Mineral water"
+];
+
+explanation = "Hot and rainy weather creates humidity, which reduces sweat evaporation. Light hydration with minerals is important to avoid fatigue.";
+}
+else{
+drinks = [
+"🥶 Cold water",
+"🥤 Fresh fruit juice",
+"🥥 Coconut water",
+"🧊 Lemon water"
+];
+
+explanation = "High heat increases sweating. Cold and hydrating drinks help maintain fluid balance and prevent dehydration.";
+}
+
+}
+
+/* 🔹 TEMPÉRATURE MODÉRÉE */
+else if(temp >= 18){
+
+if(rain > 50){
+drinks = [
+"☕ Warm tea",
+"🥛 Milk",
+"🍵 Herbal tea",
+"💧 Water"
+];
+
+explanation = "Rainy weather can cool the body. Warm drinks help maintain comfort and prevent mild cold.";
+}
+else{
+drinks = [
+"💧 Water",
+"🥤 Natural juice",
+"🥛 Milk",
+"🍹 Smoothie"
+];
+
+explanation = "Balanced weather requires normal hydration to keep energy stable.";
+}
+
+}
+
+/* 🔹 FROID */
+else{
+
+if(rain > 50){
+drinks = [
+"🔥 Hot tea",
+"☕ Coffee",
+"🍫 Hot chocolate",
+"🍲 Soup"
+];
+
+explanation = "Cold and wet conditions increase risk of illness. Hot drinks help maintain body temperature.";
+}
+else{
+drinks = [
+"☕ Tea",
+"🥛 Warm milk",
+"🍫 Hot chocolate",
+"🍵 Herbal tea"
+];
+
+explanation = "Cold weather requires warm drinks to support body heat and circulation.";
+}
+
+}
+
+/* RANDOM DRINK */
+let drink = drinks[Math.floor(Math.random()*drinks.length)];
+
+return `
+<h3>🥤 Smart Drink Suggestions</h3>
+<p><b>Recommended:</b> ${drink}</p>
+<p>🧠 ${explanation}</p>
+`;
+}
 </script>
-  
-  <script type="module">
+
+<!-- FIREBASE -->
+<script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
-/* 🔥 CONFIG FIREBASE (tes vraies données) */
 const firebaseConfig = {
-apiKey: "AIzaSyCOrDvqhbK2i7E0AQSqpQ4BE486a0NDC7Q",
+apiKey: "AIzaSy...",
 authDomain: "tenue-du-jour.firebaseapp.com",
 projectId: "tenue-du-jour",
-storageBucket: "tenue-du-jour.firebasestorage.app",
-messagingSenderId: "1007963113669",
-appId: "1:1007963113669:web:f6bc1a46c3d1ec7b4e48ac",
-measurementId: "G-7TWR0MEEM1"
 };
 
-/* 🚀 INIT */
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-/* 📩 ENVOI MESSAGE */
-window.sendMessage = async function () {
-
-let name = document.getElementById("name").value.trim();
-let email = document.getElementById("email").value.trim();
-let msg = document.getElementById("msg").value.trim();
-
+window.sendMessage = async function(){
+let name = document.getElementById("name").value;
+let email = document.getElementById("email").value;
+let msg = document.getElementById("msg").value;
 let status = document.getElementById("status");
 
-if (!name || !email || !msg) {
-status.innerText = "⚠️ Remplis tous les champs";
-return;
-}
-
-try {
-await addDoc(collection(db, "messages"), {
-name,
-email,
-message: msg,
-time: serverTimestamp()
+await addDoc(collection(db,"messages"),{
+name,email,message:msg,time:serverTimestamp()
 });
 
-status.innerText = "✔ Message envoyé avec succès";
-
-document.getElementById("name").value = "";
-document.getElementById("email").value = "";
-document.getElementById("msg").value = "";
-
-} catch (e) {
-status.innerText = "❌ Erreur lors de l'envoi";
-console.log(e);
-}
-
+status.innerText="Message sent!";
 };
-
-  </script>
+</script>
 
 </body>
 </html>
